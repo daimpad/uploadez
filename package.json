@@ -1,0 +1,26 @@
+{
+  "name": "website-project",
+  "version": "1.0.0",
+  "description": "A modern website project",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "lint": "eslint . --ext .js,.jsx,.ts,.tsx",
+    "format": "prettier --write .",
+    "test": "vitest"
+  },
+  "keywords": [
+    "website",
+    "frontend"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "vite": "^5.0.0",
+    "eslint": "^8.0.0",
+    "prettier": "^3.0.0"
+  }
+}
