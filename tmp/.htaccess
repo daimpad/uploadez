@@ -1,0 +1,11 @@
+# UploadEz – tmp/.htaccess
+# Temporäres Verzeichnis für Chunk-Uploads – vollständig gesperrt.
+
+Options -Indexes -ExecCGI
+
+RemoveHandler .php .php3 .php4 .php5 .php7 .php8 .phtml .phar
+RemoveHandler .cgi .pl .py .rb .sh
+
+<FilesMatch ".*">
+    Require all denied
+</FilesMatch>
