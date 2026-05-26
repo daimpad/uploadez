@@ -36,6 +36,10 @@ yarn-error.log*
 # Testing
 coverage/
 .nyc_output/
+.phpunit.result.cache
+
+# PHP dependencies
+vendor/
 
 # Cache
 .cache/
