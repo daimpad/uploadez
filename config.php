@@ -44,6 +44,12 @@ define('SMTP_SECURE',    getenv('SMTP_SECURE') ?: 'tls'); // 'tls' oder 'ssl'
 // ── App-URL (ohne trailing slash) ───────────────────────────────────────────
 define('APP_URL', rtrim(getenv('APP_URL') ?: 'http://localhost', '/'));
 
+// ── Admin-Bereich ────────────────────────────────────────────────────────────
+// Passwort-Hash erzeugen: php -r "echo password_hash('deinPasswort', PASSWORD_BCRYPT);"
+// Dann ADMIN_PASSWORD_HASH in .env setzen.
+define('ADMIN_PASSWORD_HASH', getenv('ADMIN_PASSWORD_HASH') ?: '');
+define('ADMIN_SESSION_LIFETIME', 3600); // Sekunden bis zur automatischen Abmeldung
+
 // ── Erlaubte MIME-Types (Whitelist) ─────────────────────────────────────────
 define('ALLOWED_MIME_TYPES', [
     // Bilder
