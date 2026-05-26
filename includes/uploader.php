@@ -192,6 +192,43 @@ function assembleAndStore(
             throw new RuntimeException("MIME-Typ '$mimeType' ist nicht erlaubt.", 400);
         }
 
+        // Kreuz-Validierung: MIME-Typ muss zur Dateiendung passen
+        $mimeExtMap = [
+            'image/jpeg'    => ['jpg', 'jpeg'],
+            'image/png'     => ['png'],
+            'image/gif'     => ['gif'],
+            'image/webp'    => ['webp'],
+            'image/svg+xml' => ['svg'],
+            'application/pdf'    => ['pdf'],
+            'application/msword' => ['doc'],
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document' => ['docx'],
+            'application/vnd.ms-excel' => ['xls'],
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'       => ['xlsx'],
+            'application/vnd.ms-powerpoint' => ['ppt'],
+            'application/vnd.openxmlformats-officedocument.presentationml.presentation' => ['pptx'],
+            'text/plain'    => ['txt'],
+            'text/csv'      => ['csv'],
+            'application/zip'           => ['zip'],
+            'application/x-zip-compressed' => ['zip'],
+            'application/x-rar-compressed' => ['rar'],
+            'application/x-7z-compressed'  => ['7z'],
+            'application/x-tar'            => ['tar'],
+            'application/gzip'             => ['gz'],
+            'audio/mpeg'    => ['mp3'],
+            'audio/wav'     => ['wav'],
+            'audio/ogg'     => ['ogg'],
+            'audio/mp4'     => ['m4a'],
+            'video/mp4'     => ['mp4'],
+            'video/webm'    => ['webm'],
+            'video/ogg'     => ['ogv'],
+            'video/quicktime' => ['mov'],
+        ];
+        if (isset($mimeExtMap[$mimeType]) && !in_array($ext, $mimeExtMap[$mimeType], true)) {
+            throw new RuntimeException(
+                "Dateiendung '.$ext' stimmt nicht mit dem erkannten Typ '$mimeType' überein.", 400
+            );
+        }
+
         // Sicherer, zufälliger Dateiname (kein Zusammenhang zum Original)
         $storedName = bin2hex(random_bytes(16)) . '.' . $ext;
         $destPath   = UPLOAD_DIR . $storedName;
@@ -241,6 +278,15 @@ function assembleAndStore(
 
         // Chunks-Verzeichnis aufräumen
         cleanupChunkDir($chunkDir);
+
+        // Benachrichtigungs-E-Mail an Uploader (silent – Upload schlägt nicht fehl)
+        if ($emailRecipient !== null && function_exists('sendUploaderNotification')) {
+            try {
+                sendUploaderNotification($emailRecipient, $origName, $assembledSize, $token, $expiry);
+            } catch (Throwable) {
+                error_log('UploadEz: Uploader-Benachrichtigung fehlgeschlagen für ' . $emailRecipient);
+            }
+        }
 
         return ['token' => $token, 'expiry' => $expiry];
 

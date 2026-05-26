@@ -323,6 +323,37 @@ $h = fn(string $s) => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
         .btn-del { background: none; border: none; cursor: pointer; color: var(--clr-muted); font-size: 1rem; padding: 4px 6px; border-radius: 4px; transition: color .15s, background .15s; }
         .btn-del:hover { color: var(--clr-error); background: #fef2f2; }
 
+        /* ── Lösch-Modal ──────────────────────────────────────────────────── */
+        .modal-backdrop {
+            display: none; position: fixed; inset: 0;
+            background: rgba(15,23,42,.45); z-index: 100;
+            align-items: center; justify-content: center;
+        }
+        .modal-backdrop.open { display: flex; }
+        .modal {
+            background: var(--clr-surface); border-radius: var(--radius);
+            box-shadow: 0 20px 60px rgba(0,0,0,.25);
+            padding: 32px; max-width: 420px; width: 90%;
+            animation: modalIn .18s ease-out;
+        }
+        @keyframes modalIn { from { transform: scale(.94); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+        .modal-icon { font-size: 2.5rem; text-align: center; margin-bottom: 12px; }
+        .modal h3 { font-size: 1.1rem; text-align: center; margin-bottom: 8px; }
+        .modal p { font-size: .88rem; color: var(--clr-muted); text-align: center; margin-bottom: 24px; word-break: break-word; }
+        .modal-actions { display: flex; gap: 10px; }
+        .modal-actions .btn-cancel {
+            flex: 1; padding: 11px; border: 1.5px solid var(--clr-border); border-radius: var(--radius-sm);
+            background: var(--clr-surface); font-size: .9rem; font-weight: 600; cursor: pointer; color: var(--clr-text);
+            transition: background .15s;
+        }
+        .modal-actions .btn-cancel:hover { background: var(--clr-surface-2); }
+        .modal-actions .btn-confirm-del {
+            flex: 1; padding: 11px; border: none; border-radius: var(--radius-sm);
+            background: var(--clr-error); color: #fff; font-size: .9rem; font-weight: 600;
+            cursor: pointer; transition: opacity .15s;
+        }
+        .modal-actions .btn-confirm-del:hover { opacity: .88; }
+
         /* Leer-Zustand */
         .empty-state { text-align: center; padding: 60px 20px; color: var(--clr-muted); }
         .empty-state .empty-icon { font-size: 3rem; margin-bottom: 12px; }
@@ -519,11 +550,13 @@ $h = fn(string $s) => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
                     </td>
                     <!-- Löschen -->
                     <td>
-                        <form class="delete-form" method="POST" action="admin.php"
-                              onsubmit="return confirm('Datei „<?= $h(addslashes($f['original_name'])) ?>" wirklich löschen?')">
+                        <form class="delete-form" method="POST" action="admin.php" id="del-<?= $h($f['token']) ?>">
                             <input type="hidden" name="csrf_token"   value="<?= $h($csrfToken) ?>">
                             <input type="hidden" name="delete_token" value="<?= $h($f['token']) ?>">
-                            <button type="submit" class="btn-del" title="Datei löschen">🗑️</button>
+                            <button type="button" class="btn-del" title="Datei löschen"
+                                    onclick="openDeleteModal('del-<?= $h($f['token']) ?>', '<?= $h(addslashes($f['original_name'])) ?>')">
+                                🗑️
+                            </button>
                         </form>
                     </td>
                 </tr>
@@ -555,13 +588,54 @@ $h = fn(string $s) => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
 </main>
 <?php endif; ?>
 
+<!-- ── Lösch-Bestätigungs-Modal ───────────────────────────────────────────── -->
+<div class="modal-backdrop" id="deleteModal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <div class="modal">
+        <div class="modal-icon">🗑️</div>
+        <h3 id="modalTitle">Datei löschen?</h3>
+        <p id="modalFileName"></p>
+        <div class="modal-actions">
+            <button class="btn-cancel" onclick="closeDeleteModal()">Abbrechen</button>
+            <button class="btn-confirm-del" id="modalConfirmBtn">Löschen</button>
+        </div>
+    </div>
+</div>
+
 <script>
+let _pendingDeleteForm = null;
+
+function openDeleteModal(formId, filename) {
+    _pendingDeleteForm = document.getElementById(formId);
+    document.getElementById('modalFileName').textContent =
+        'Datei „' + filename + '" wird unwiderruflich gelöscht.';
+    document.getElementById('deleteModal').classList.add('open');
+    document.getElementById('modalConfirmBtn').focus();
+}
+
+function closeDeleteModal() {
+    _pendingDeleteForm = null;
+    document.getElementById('deleteModal').classList.remove('open');
+}
+
+document.getElementById('modalConfirmBtn').addEventListener('click', () => {
+    if (_pendingDeleteForm) _pendingDeleteForm.submit();
+});
+
+// Klick auf den Hintergrund schließt das Modal
+document.getElementById('deleteModal').addEventListener('click', (e) => {
+    if (e.target === e.currentTarget) closeDeleteModal();
+});
+
+// Escape-Taste schließt das Modal
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeDeleteModal();
+});
+
 async function copyUrl(btn) {
     const url = btn.dataset.url;
     try {
         await navigator.clipboard.writeText(url);
     } catch {
-        // Fallback für ältere Browser
         const ta = document.createElement('textarea');
         ta.value = url;
         ta.style.position = 'fixed';
