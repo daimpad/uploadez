@@ -80,6 +80,15 @@ define('APP_URL', rtrim(getenv('APP_URL') ?: 'http://localhost', '/'));
 define('ADMIN_PASSWORD_HASH', getenv('ADMIN_PASSWORD_HASH') ?: '');
 define('ADMIN_SESSION_LIFETIME', 3600); // Sekunden bis zur automatischen Abmeldung
 
+// ── Upload-Authentifizierung ─────────────────────────────────────────────────
+// Wenn gesetzt, muss jeder Upload-Versuch diesen Token mitsenden.
+// Leer lassen um Upload ohne Auth zu erlauben.
+define('UPLOAD_TOKEN', getenv('UPLOAD_TOKEN') ?: '');
+
+// ── Rate Limiting ─────────────────────────────────────────────────────────────
+define('RATE_LIMIT_MAX_UPLOADS', (int)(getenv('RATE_LIMIT_MAX') ?: 20));   // Max. Uploads
+define('RATE_LIMIT_WINDOW',      (int)(getenv('RATE_LIMIT_WINDOW') ?: 3600)); // Zeitfenster in Sek.
+
 // ── Erlaubte MIME-Types (Whitelist) ─────────────────────────────────────────
 define('ALLOWED_MIME_TYPES', [
     // Bilder

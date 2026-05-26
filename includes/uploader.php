@@ -6,8 +6,9 @@ declare(strict_types=1);
  *
  * Ablauf:
  *  1. Client sendet Chunks einzeln via POST (chunk_index, total_chunks, …).
- *  2. Jeder Chunk wird unter tmp/{file_id}/chunk_{index} gespeichert.
- *  3. Nach dem letzten Chunk: Chunks zusammenführen → MIME validieren →
+ *  2. Beim ersten Chunk (index 0): Upload-Auth + Rate-Limit prüfen.
+ *  3. Jeder Chunk wird unter tmp/{file_id}/chunk_{index} gespeichert.
+ *  4. Nach dem letzten Chunk: Chunks zusammenführen → MIME validieren →
  *     in uploads/{stored_name} ablegen → DB-Eintrag erstellen.
  */
 
@@ -17,9 +18,10 @@ function handleUploadChunk(PDO $pdo): void
     $chunkIndex  = filter_input(INPUT_POST, 'chunk_index',  FILTER_VALIDATE_INT);
     $totalChunks = filter_input(INPUT_POST, 'total_chunks', FILTER_VALIDATE_INT);
     $totalSize   = filter_input(INPUT_POST, 'total_size',   FILTER_VALIDATE_INT);
-    $fileId      = trim($_POST['file_id']      ?? '');
-    $origName    = trim($_POST['original_name'] ?? '');
-    $email       = trim($_POST['email']         ?? '');
+    $fileId      = trim($_POST['file_id']        ?? '');
+    $origName    = trim($_POST['original_name']  ?? '');
+    $email       = trim($_POST['email']          ?? '');
+    $linkPw      = $_POST['link_password']       ?? '';
 
     if ($chunkIndex === false || $totalChunks === false || $totalSize === false) {
         throw new RuntimeException('Ungültige Chunk-Parameter.', 400);
@@ -63,6 +65,21 @@ function handleUploadChunk(PDO $pdo): void
         }
     }
 
+    // ── Erster Chunk: Auth + Rate-Limit ─────────────────────────────────────
+    if ($chunkIndex === 0) {
+        // Upload-Authentifizierung (falls UPLOAD_TOKEN konfiguriert)
+        if (UPLOAD_TOKEN !== '') {
+            $submitted = $_POST['upload_token'] ?? '';
+            if (!hash_equals(UPLOAD_TOKEN, $submitted)) {
+                throw new RuntimeException('Ungültiger Zugangscode.', 401);
+            }
+        }
+
+        // Rate Limiting
+        $clientIp = getClientIp() ?? '0.0.0.0';
+        checkRateLimit($pdo, $clientIp);
+    }
+
     // ── Chunk prüfen & speichern ─────────────────────────────────────────────
     if (
         !isset($_FILES['chunk']) ||
@@ -102,7 +119,7 @@ function handleUploadChunk(PDO $pdo): void
     }
 
     // ── Datei zusammenfügen & finalisieren ───────────────────────────────────
-    $result = assembleAndStore($pdo, $chunkDir, $fileId, $totalChunks, $origName, $ext, $totalSize, $emailRecipient);
+    $result = assembleAndStore($pdo, $chunkDir, $fileId, $totalChunks, $origName, $ext, $totalSize, $emailRecipient, $linkPw);
 
     echo json_encode([
         'success'      => true,
@@ -126,7 +143,8 @@ function assembleAndStore(
     string  $origName,
     string  $ext,
     int     $totalSize,
-    ?string $emailRecipient
+    ?string $emailRecipient,
+    string  $linkPassword = ''
 ): array {
     // Alle Chunks in Reihenfolge zusammenführen
     // tempnam im eigenen TEMP_DIR (nicht im globalen /tmp des OS)
@@ -195,22 +213,30 @@ function assembleAndStore(
         $rawIp = $_SERVER['HTTP_X_FORWARDED_FOR'] ?? $_SERVER['REMOTE_ADDR'] ?? '';
         $ip    = filter_var(explode(',', $rawIp)[0], FILTER_VALIDATE_IP) ? trim(explode(',', $rawIp)[0]) : null;
 
+        // Passwort-Hash (null wenn kein Passwort gesetzt)
+        $linkPasswordHash = ($linkPassword !== '')
+            ? password_hash($linkPassword, PASSWORD_BCRYPT)
+            : null;
+
         // DB-Eintrag
         $stmt = $pdo->prepare(
             'INSERT INTO files
-                (original_name, stored_name, mime_type, file_size, token, expiry, email_recipient, ip_address)
+                (original_name, stored_name, mime_type, file_size, token, expiry,
+                 email_recipient, link_password_hash, ip_address)
              VALUES
-                (:orig, :stored, :mime, :size, :token, :expiry, :email, INET6_ATON(:ip))'
+                (:orig, :stored, :mime, :size, :token, :expiry,
+                 :email, :pw_hash, INET6_ATON(:ip))'
         );
         $stmt->execute([
-            ':orig'   => $origName,
-            ':stored' => $storedName,
-            ':mime'   => $mimeType,
-            ':size'   => $assembledSize,
-            ':token'  => $token,
-            ':expiry' => $expiry,
-            ':email'  => $emailRecipient,
-            ':ip'     => $ip,
+            ':orig'    => $origName,
+            ':stored'  => $storedName,
+            ':mime'    => $mimeType,
+            ':size'    => $assembledSize,
+            ':token'   => $token,
+            ':expiry'  => $expiry,
+            ':email'   => $emailRecipient,
+            ':pw_hash' => $linkPasswordHash,
+            ':ip'      => $ip,
         ]);
 
         // Chunks-Verzeichnis aufräumen
