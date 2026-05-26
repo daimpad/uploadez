@@ -318,6 +318,15 @@ if ($action !== '') {
             transition: width .3s ease;
         }
 
+        .progress-meta {
+            display: flex;
+            justify-content: space-between;
+            font-size: .75rem;
+            color: var(--clr-muted);
+            margin-top: 5px;
+            min-height: 1.1em;
+        }
+
         /* ── Buttons ─────────────────────────────────────────────────────── */
         .btn {
             display: inline-flex;
@@ -615,6 +624,10 @@ if ($action !== '') {
                     <div class="progress-bar-bg">
                         <div class="progress-bar-fill" id="progress-fill"></div>
                     </div>
+                    <div class="progress-meta">
+                        <span id="progress-speed"></span>
+                        <span id="progress-eta"></span>
+                    </div>
                 </div>
 
                 <!-- Fehlermeldung -->
@@ -707,6 +720,8 @@ const progressWrap      = document.getElementById('progress-wrap');
 const progressLabel     = document.getElementById('progress-label');
 const progressPct       = document.getElementById('progress-pct');
 const progressFill      = document.getElementById('progress-fill');
+const progressSpeed     = document.getElementById('progress-speed');
+const progressEta       = document.getElementById('progress-eta');
 const uploadBtn         = document.getElementById('upload-btn');
 const uploadBtnText     = document.getElementById('upload-btn-text');
 const uploadError       = document.getElementById('upload-error');
@@ -807,14 +822,37 @@ function clearFile() {
     uploadBtnText.textContent = 'Datei auswählen';
     hideAlert(uploadError);
     setProgress(0, '');
+    progressSpeed.textContent = '';
+    progressEta.textContent   = '';
     progressWrap.classList.remove('visible');
 }
 
 /* ── Fortschritt aktualisieren ─────────────────────────────────────────────── */
-function setProgress(pct, label) {
+function setProgress(pct, label, speedBps, etaSec) {
     progressFill.style.width = pct + '%';
     progressPct.textContent  = Math.round(pct) + '%';
     if (label) progressLabel.textContent = label;
+
+    // Geschwindigkeit
+    if (speedBps != null && speedBps > 0) {
+        progressSpeed.textContent = formatBytes(speedBps) + '/s';
+    } else {
+        progressSpeed.textContent = '';
+    }
+
+    // ETA
+    if (etaSec != null && etaSec > 0 && etaSec < 86400) {
+        progressEta.textContent = 'noch ~' + formatEta(etaSec);
+    } else {
+        progressEta.textContent = '';
+    }
+}
+
+function formatEta(sec) {
+    sec = Math.round(sec);
+    if (sec < 60)   return sec + ' Sek.';
+    if (sec < 3600) return Math.ceil(sec / 60) + ' Min.';
+    return Math.ceil(sec / 3600) + ' Std.';
 }
 
 /* ── Drag-and-Drop ─────────────────────────────────────────────────────────── */
@@ -847,18 +885,68 @@ fileRemoveBtn.addEventListener('click', e => {
 });
 
 /* ── Chunked Upload ────────────────────────────────────────────────────────── */
+
+const MAX_RETRIES    = 3;
+const RETRY_DELAYS   = [1000, 2000, 4000]; // ms zwischen Versuchen
+
+/**
+ * Sendet einen einzelnen Chunk mit automatischem Retry bei Netzwerk-/Serverfehlern.
+ * Gibt das geparste JSON-Objekt zurück oder wirft nach MAX_RETRIES Fehlern.
+ */
+async function sendChunk(fd, chunkIdx, totalChunks) {
+    let lastErr;
+
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+        if (attempt > 0) {
+            const delay = RETRY_DELAYS[attempt - 1];
+            setProgress(
+                (chunkIdx / totalChunks) * 100,
+                `Chunk ${chunkIdx + 1}/${totalChunks}: Versuch ${attempt + 1}/${MAX_RETRIES + 1}…`
+            );
+            await new Promise(r => setTimeout(r, delay));
+        }
+
+        try {
+            const response = await fetch('index.php', { method: 'POST', body: fd });
+
+            if (!response.ok) {
+                const txt = await response.text().catch(() => '');
+                throw new Error(`Server-Fehler ${response.status}: ${txt.slice(0, 120)}`);
+            }
+
+            const data = await response.json().catch(() => {
+                throw new Error('Ungültige Server-Antwort (kein JSON).');
+            });
+
+            if (!data.success) throw new Error(data.error || 'Unbekannter Fehler.');
+
+            return data;
+
+        } catch (err) {
+            lastErr = err;
+            // Sofort werfen wenn es ein fachlicher Fehler ist (kein Retry sinnvoll)
+            if (err.message.startsWith('Server-Fehler 4')) throw err;
+        }
+    }
+
+    throw new Error(`Upload fehlgeschlagen nach ${MAX_RETRIES + 1} Versuchen: ${lastErr?.message}`);
+}
+
 async function uploadFile(file, email) {
-    const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
-    const fileId      = generateUUID();
-    let   lastResult  = null;
+    const totalChunks  = Math.ceil(file.size / CHUNK_SIZE);
+    const fileId       = generateUUID();
+    let   lastResult   = null;
+    let   bytesUploaded = 0;
+    const startTime    = Date.now();
 
     progressWrap.classList.add('visible');
     setProgress(0, 'Vorbereitung…');
 
     for (let i = 0; i < totalChunks; i++) {
-        const start = i * CHUNK_SIZE;
-        const end   = Math.min(start + CHUNK_SIZE, file.size);
-        const chunk = file.slice(start, end);
+        const start     = i * CHUNK_SIZE;
+        const end       = Math.min(start + CHUNK_SIZE, file.size);
+        const chunkSize = end - start;
+        const chunk     = file.slice(start, end);
 
         const fd = new FormData();
         fd.append('action',        'upload_chunk');
@@ -870,33 +958,21 @@ async function uploadFile(file, email) {
         fd.append('total_size',    String(file.size));
         if (email) fd.append('email', email);
 
-        const pct  = ((i + 1) / totalChunks) * 100;
         const label = totalChunks === 1
             ? 'Hochladen…'
-            : `Chunk ${i + 1} von ${totalChunks} wird übertragen…`;
+            : `Chunk ${i + 1} von ${totalChunks}…`;
 
-        let response;
-        try {
-            response = await fetch('index.php', { method: 'POST', body: fd });
-        } catch (networkErr) {
-            throw new Error('Netzwerkfehler – bitte Verbindung prüfen.');
-        }
+        const data = await sendChunk(fd, i, totalChunks);
 
-        if (!response.ok) {
-            const txt = await response.text().catch(() => '');
-            throw new Error(`Server-Fehler ${response.status}: ${txt.slice(0, 200)}`);
-        }
+        // ── ETA berechnen ────────────────────────────────────────────────────
+        bytesUploaded += chunkSize;
+        const elapsedSec = (Date.now() - startTime) / 1000;
+        const speedBps   = elapsedSec > 0.5 ? bytesUploaded / elapsedSec : 0;
+        const remaining  = file.size - bytesUploaded;
+        const etaSec     = speedBps > 0 ? remaining / speedBps : null;
+        const pct        = (bytesUploaded / file.size) * 100;
 
-        let data;
-        try {
-            data = await response.json();
-        } catch {
-            throw new Error('Ungültige Server-Antwort (kein JSON).');
-        }
-
-        if (!data.success) throw new Error(data.error || 'Unbekannter Fehler.');
-
-        setProgress(pct, label);
+        setProgress(pct, label, speedBps || null, etaSec);
         lastResult = data;
 
         if (data.complete) break;
