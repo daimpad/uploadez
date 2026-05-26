@@ -1,0 +1,27 @@
+{
+    "name": "daimpad/uploadez",
+    "description": "Secure file sharing tool (LAMP stack)",
+    "type": "project",
+    "license": "MIT",
+    "require": {
+        "php": ">=8.0"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^11.0"
+    },
+    "suggest": {
+        "phpmailer/phpmailer": "SMTP email support (falls back to PHP mail() without it)"
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "UploadEz\\Tests\\": "tests/"
+        }
+    },
+    "scripts": {
+        "test": "vendor/bin/phpunit"
+    },
+    "config": {
+        "optimize-autoloader": true,
+        "preferred-install": "dist"
+    }
+}

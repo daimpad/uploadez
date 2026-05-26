@@ -93,13 +93,27 @@ foreach ($chunkDirs as $dir) {
     }
 }
 
-// ── 3. Zusammenfassung ───────────────────────────────────────────────────────
+// ── 3. Abgelaufene Rate-Limit-Einträge löschen ───────────────────────────────
+try {
+    $stmt = $pdo->prepare(
+        'DELETE FROM rate_limits WHERE created_at < DATE_SUB(NOW(), INTERVAL :window SECOND)'
+    );
+    $stmt->execute([':window' => RATE_LIMIT_WINDOW]);
+    $deletedRateLimits = $stmt->rowCount();
+    logLine("  ✓ Rate-Limit-Einträge bereinigt: $deletedRateLimits");
+} catch (Throwable $e) {
+    logLine('  ~ rate_limits-Cleanup übersprungen: ' . $e->getMessage());
+    $deletedRateLimits = 0;
+}
+
+// ── 4. Zusammenfassung ───────────────────────────────────────────────────────
 $elapsed = round(microtime(true) - $startTime, 3);
 logLine('');
 logLine("Zusammenfassung:");
 logLine("  Dateien gelöscht:          $deletedFiles");
 logLine("  Dateien fehlgeschlagen:    $failedFiles");
 logLine("  Chunk-Verzeichnisse:       $cleanedDirs");
+logLine("  Rate-Limit-Einträge:       $deletedRateLimits");
 logLine("  Laufzeit:                  {$elapsed}s");
 logLine('=== Cleanup abgeschlossen ===');
 

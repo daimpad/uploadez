@@ -17,6 +17,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/includes/db.php';
+require_once __DIR__ . '/includes/rate_limiter.php';
 require_once __DIR__ . '/includes/uploader.php';
 require_once __DIR__ . '/includes/mailer.php';
 
@@ -615,6 +616,31 @@ if ($action !== '') {
                     <div class="input-hint">Der Download-Link wird nach dem Upload direkt an diese Adresse gesendet.</div>
                 </div>
 
+                <?php if (UPLOAD_TOKEN !== ''): ?>
+                <!-- Zugangscode (nur wenn UPLOAD_TOKEN konfiguriert) -->
+                <div class="form-group">
+                    <label for="upload-token-input">Zugangscode <span style="color:var(--clr-error)">*</span></label>
+                    <div class="input-wrap">
+                        <span class="input-icon" aria-hidden="true">🔑</span>
+                        <input type="password" id="upload-token-input"
+                               placeholder="Zugangscode eingeben"
+                               autocomplete="off" required>
+                    </div>
+                </div>
+                <?php endif; ?>
+
+                <!-- Link mit Passwort schützen (optional) -->
+                <div class="form-group">
+                    <label for="link-password-input">Link-Passwort (optional)</label>
+                    <div class="input-wrap">
+                        <span class="input-icon" aria-hidden="true">🔒</span>
+                        <input type="password" id="link-password-input"
+                               placeholder="Leer lassen für öffentlichen Link"
+                               autocomplete="new-password">
+                    </div>
+                    <div class="input-hint">Empfänger müssen dieses Passwort eingeben, um die Datei herunterzuladen.</div>
+                </div>
+
                 <!-- Fortschrittsanzeige -->
                 <div class="progress-wrap" id="progress-wrap">
                     <div class="progress-header">
@@ -716,6 +742,8 @@ const fileSizeDisplay   = document.getElementById('file-size-display');
 const fileTypeIcon      = document.getElementById('file-type-icon');
 const fileRemoveBtn     = document.getElementById('file-remove-btn');
 const emailInputUpload  = document.getElementById('email-input-upload');
+const uploadTokenInput  = document.getElementById('upload-token-input');
+const linkPasswordInput = document.getElementById('link-password-input');
 const progressWrap      = document.getElementById('progress-wrap');
 const progressLabel     = document.getElementById('progress-label');
 const progressPct       = document.getElementById('progress-pct');
@@ -932,7 +960,7 @@ async function sendChunk(fd, chunkIdx, totalChunks) {
     throw new Error(`Upload fehlgeschlagen nach ${MAX_RETRIES + 1} Versuchen: ${lastErr?.message}`);
 }
 
-async function uploadFile(file, email) {
+async function uploadFile(file, email, uploadToken = '', linkPassword = '') {
     const totalChunks  = Math.ceil(file.size / CHUNK_SIZE);
     const fileId       = generateUUID();
     let   lastResult   = null;
@@ -957,6 +985,11 @@ async function uploadFile(file, email) {
         fd.append('original_name', file.name);
         fd.append('total_size',    String(file.size));
         if (email) fd.append('email', email);
+        // Zugangscode + Link-Passwort nur mit erstem Chunk senden
+        if (i === 0) {
+            if (uploadToken)  fd.append('upload_token',   uploadToken);
+            if (linkPassword) fd.append('link_password',  linkPassword);
+        }
 
         const label = totalChunks === 1
             ? 'Hochladen…'
@@ -985,14 +1018,16 @@ async function uploadFile(file, email) {
 uploadBtn.addEventListener('click', async () => {
     if (!selectedFile) return;
 
-    const email = emailInputUpload.value.trim();
+    const email        = emailInputUpload.value.trim();
+    const uploadToken  = uploadTokenInput  ? uploadTokenInput.value.trim()  : '';
+    const linkPassword = linkPasswordInput ? linkPasswordInput.value        : '';
 
     uploadBtn.disabled        = true;
     uploadBtnText.innerHTML   = '<span class="spinner"></span> Wird übertragen…';
     hideAlert(uploadError);
 
     try {
-        const result = await uploadFile(selectedFile, email);
+        const result = await uploadFile(selectedFile, email, uploadToken, linkPassword);
 
         if (!result?.token || !result?.download_url) {
             throw new Error('Upload erfolgreich, aber kein Download-Link erhalten.');
