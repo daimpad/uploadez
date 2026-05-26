@@ -129,7 +129,8 @@ function assembleAndStore(
     ?string $emailRecipient
 ): array {
     // Alle Chunks in Reihenfolge zusammenführen
-    $tmpAssembled = tempnam(sys_get_temp_dir(), 'uploadez_');
+    // tempnam im eigenen TEMP_DIR (nicht im globalen /tmp des OS)
+    $tmpAssembled = tempnam(TEMP_DIR, 'asm_');
     if ($tmpAssembled === false) {
         throw new RuntimeException('Temp-Datei konnte nicht erstellt werden.', 500);
     }
@@ -218,9 +219,13 @@ function assembleAndStore(
         return ['token' => $token, 'expiry' => $expiry];
 
     } catch (Throwable $e) {
-        // Sicherstellen dass Temp-Datei entfernt wird
+        // Temp-Datei entfernen
         if (file_exists($tmpAssembled)) {
             @unlink($tmpAssembled);
+        }
+        // Chunk-Verzeichnis ebenfalls bereinigen (verhindert verwaiste Dateien)
+        if (is_dir($chunkDir)) {
+            cleanupChunkDir($chunkDir);
         }
         throw $e;
     }

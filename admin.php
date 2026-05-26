@@ -35,6 +35,17 @@ if (isset($_GET['logout'])) {
     exit;
 }
 
+// ── CSRF-Token erzeugen / prüfen ──────────────────────────────────────────────
+if (empty($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+}
+$csrfToken = $_SESSION['csrf_token'];
+
+function verifyCsrf(): bool {
+    $submitted = $_POST['csrf_token'] ?? '';
+    return hash_equals($_SESSION['csrf_token'] ?? '', $submitted);
+}
+
 // ── Einloggen ────────────────────────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['password'])) {
     $hash = ADMIN_PASSWORD_HASH;
@@ -45,6 +56,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['password'])) {
         session_regenerate_id(true);
         $_SESSION['uploadez_admin']    = true;
         $_SESSION['uploadez_admin_ts'] = time();
+        $_SESSION['csrf_token']        = bin2hex(random_bytes(32));
         header('Location: admin.php');
         exit;
     } else {
@@ -57,6 +69,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['password'])) {
 // ── Datei löschen (POST-Action) ───────────────────────────────────────────────
 $deleteMsg = '';
 if ($isLoggedIn && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_token'])) {
+    if (!verifyCsrf()) {
+        header('Location: admin.php?deleted=error');
+        exit;
+    }
     $delToken = trim($_POST['delete_token']);
     if (preg_match('/^[0-9a-f]{64}$/', $delToken)) {
         try {
@@ -505,6 +521,7 @@ $h = fn(string $s) => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
                     <td>
                         <form class="delete-form" method="POST" action="admin.php"
                               onsubmit="return confirm('Datei „<?= $h(addslashes($f['original_name'])) ?>" wirklich löschen?')">
+                            <input type="hidden" name="csrf_token"   value="<?= $h($csrfToken) ?>">
                             <input type="hidden" name="delete_token" value="<?= $h($f['token']) ?>">
                             <button type="submit" class="btn-del" title="Datei löschen">🗑️</button>
                         </form>

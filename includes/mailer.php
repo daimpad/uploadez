@@ -154,10 +154,14 @@ function sendWithPhpMailer(string $to, string $subject, string $htmlBody, string
 function sendWithMailFunction(string $to, string $subject, string $htmlBody, string $textBody): bool
 {
     $boundary = md5(uniqid('', true));
-    $from     = SMTP_FROM_NAME . ' <' . SMTP_FROM . '>';
+
+    // CRLF aus Konfigurationswerten entfernen (Header-Injection-Schutz)
+    $safeName = preg_replace('/[\r\n]/', '', SMTP_FROM_NAME);
+    $safeFrom = preg_replace('/[\r\n<>]/', '', SMTP_FROM);
+    $from     = $safeName . ' <' . $safeFrom . '>';
 
     $headers  = "From: $from\r\n";
-    $headers .= "Reply-To: " . SMTP_FROM . "\r\n";
+    $headers .= "Reply-To: $safeFrom\r\n";
     $headers .= "MIME-Version: 1.0\r\n";
     $headers .= "Content-Type: multipart/alternative; boundary=\"$boundary\"\r\n";
     $headers .= "X-Mailer: UploadEz\r\n";
