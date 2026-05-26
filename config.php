@@ -12,6 +12,36 @@ declare(strict_types=1);
  *   file_uploads        = On
  */
 
+// ── Minimaler .env-Parser ────────────────────────────────────────────────────
+// Lädt .env aus dem Root-Verzeichnis, falls vorhanden.
+// Bereits gesetzte Umgebungsvariablen (z. B. via Apache SetEnv) werden nicht überschrieben.
+(static function (): void {
+    $envFile = __DIR__ . '/.env';
+    if (!is_readable($envFile)) {
+        return;
+    }
+    foreach (file($envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) as $line) {
+        $line = trim($line);
+        // Kommentare und Zeilen ohne = überspringen
+        if ($line === '' || $line[0] === '#' || !str_contains($line, '=')) {
+            continue;
+        }
+        [$key, $value] = explode('=', $line, 2);
+        $key   = trim($key);
+        // Anführungszeichen und Whitespace entfernen
+        $value = trim($value, " \t\r\n\"'");
+        // Inline-Kommentare entfernen (#...)
+        if (($pos = strpos($value, ' #')) !== false) {
+            $value = rtrim(substr($value, 0, $pos));
+        }
+        if ($key !== '' && getenv($key) === false) {
+            putenv("$key=$value");
+            $_ENV[$key]    = $value;
+            $_SERVER[$key] = $value;
+        }
+    }
+})();
+
 // ── Datenbankverbindung ──────────────────────────────────────────────────────
 define('DB_HOST',    getenv('DB_HOST') ?: 'localhost');
 define('DB_PORT',    (int)(getenv('DB_PORT') ?: 3306));
