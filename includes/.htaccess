@@ -1,0 +1,6 @@
+# UploadEz – includes/.htaccess
+# PHP-Module dürfen nicht direkt aufgerufen werden.
+
+<FilesMatch ".*">
+    Require all denied
+</FilesMatch>

@@ -41,6 +41,11 @@ coverage/
 .cache/
 .eslintcache
 
-# Temporary files
-tmp/
+# Temporary files (contents ignored, but security config tracked)
+tmp/*
+!tmp/.htaccess
 temp/
+
+# Upload storage (contents never committed)
+uploads/*
+!uploads/.htaccess

@@ -1,0 +1,24 @@
+# UploadEz – uploads/.htaccess
+# Verhindert JEDE Skriptausführung und jeden Direktzugriff.
+# Dies ist die kritischste Sicherheitsmaßnahme der gesamten Anwendung.
+
+Options -Indexes -ExecCGI
+
+# Alle Handler für Skript-Typen entfernen
+RemoveHandler .php .php3 .php4 .php5 .php7 .php8 .phtml .phar
+RemoveHandler .cgi .pl .py .rb .sh .bash
+RemoveHandler .asp .aspx .jsp .cfm
+
+# Alle Typen zu Plaintext umbiegen (verhindert Browser-Ausführung von JS etc.)
+RemoveType .php .php3 .php4 .php5 .php7 .php8 .phtml .phar
+AddType text/plain .php .php3 .php4 .php5 .php7 .php8 .phtml .phar .cgi .pl .py .rb .sh
+
+# mod_mime: PHP über AddHandler deaktivieren
+<IfModule mod_mime.c>
+    AddHandler text/plain .php .php3 .php4 .php5 .php7 .php8 .phtml
+</IfModule>
+
+# Direktzugriff komplett verweigern – Download läuft nur über download.php
+<FilesMatch ".*">
+    Require all denied
+</FilesMatch>

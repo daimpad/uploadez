@@ -1,0 +1,70 @@
+# UploadEz – Root .htaccess
+# Apache 2.4+
+
+Options -Indexes -MultiViews
+ServerSignature Off
+
+# ── Sicherheits-Header ───────────────────────────────────────────────────────
+<IfModule mod_headers.c>
+    Header always set X-Content-Type-Options    "nosniff"
+    Header always set X-Frame-Options           "DENY"
+    Header always set X-XSS-Protection          "1; mode=block"
+    Header always set Referrer-Policy           "strict-origin-when-cross-origin"
+    Header always set Permissions-Policy        "camera=(), microphone=(), geolocation=()"
+    Header always set Content-Security-Policy   "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; font-src 'self' data:; frame-ancestors 'none';"
+    Header unset Server
+    Header unset X-Powered-By
+</IfModule>
+
+# ── Zugriff auf sensible Dateien verweigern ──────────────────────────────────
+<FilesMatch "\.(sql|log|env|sh|py|rb|pl|cgi|htpasswd|key|pem|p12|pfx)$">
+    Require all denied
+</FilesMatch>
+
+# config.php darf nicht direkt aufgerufen werden
+<FilesMatch "^(config|cleanup)\.php$">
+    Require all denied
+</FilesMatch>
+
+# ── Includes-Verzeichnis sperren ─────────────────────────────────────────────
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # Kein direkter Zugriff auf includes/
+    RewriteRule ^includes/ - [F,L]
+    # Kein direkter Zugriff auf tmp/
+    RewriteRule ^tmp/ - [F,L]
+
+    # HTTPS erzwingen (in Produktion einkommentieren)
+    # RewriteCond %{HTTPS} off
+    # RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+</IfModule>
+
+# ── PHP-Konfiguration über .htaccess ────────────────────────────────────────
+<IfModule mod_php.c>
+    php_value upload_max_filesize 2G
+    php_value post_max_size       2G
+    php_value max_execution_time  3600
+    php_value memory_limit        256M
+    php_flag  file_uploads        On
+    # Session-Sicherheit
+    php_flag  session.cookie_httponly On
+    php_flag  session.cookie_secure   Off
+    php_value session.cookie_samesite Strict
+</IfModule>
+
+# ── Caching für statische Assets ─────────────────────────────────────────────
+<IfModule mod_expires.c>
+    ExpiresActive On
+    ExpiresByType text/css              "access plus 1 month"
+    ExpiresByType application/javascript "access plus 1 month"
+    ExpiresByType image/png             "access plus 1 month"
+    ExpiresByType image/jpeg            "access plus 1 month"
+    ExpiresByType image/svg+xml         "access plus 1 month"
+    ExpiresByType image/x-icon          "access plus 1 year"
+</IfModule>
+
+# ── Komprimierung ─────────────────────────────────────────────────────────────
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE text/html text/css application/javascript text/plain
+</IfModule>
