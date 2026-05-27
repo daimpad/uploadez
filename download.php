@@ -17,7 +17,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/includes/db.php';
 
-session_set_cookie_params(['httponly' => true, 'samesite' => 'Strict']);
+session_set_cookie_params(['httponly' => true, 'samesite' => 'Strict', 'secure' => isset($_SERVER['HTTPS'])]);
 session_start();
 
 // ── Token lesen & validieren ─────────────────────────────────────────────────
@@ -88,8 +88,9 @@ if ($storedName !== $file['stored_name'] || $storedName === '') {
 $filePath = UPLOAD_DIR . $storedName;
 
 // realpath() schlägt fehl wenn Datei nicht existiert → sicher
-$realPath = realpath($filePath);
-if ($realPath === false || strpos($realPath, realpath(UPLOAD_DIR)) !== 0) {
+$uploadDir = realpath(UPLOAD_DIR);
+$realPath  = realpath($filePath);
+if ($uploadDir === false || $realPath === false || strpos($realPath, $uploadDir) !== 0) {
     error_log('UploadEz: Datei nicht gefunden auf Disk: ' . $filePath);
     respondWithError(404, 'Datei nicht auf dem Server gefunden.');
 }

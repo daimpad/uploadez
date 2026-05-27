@@ -24,27 +24,41 @@ function checkRateLimit(PDO $pdo, string $ip): void
         )->execute([':window' => RATE_LIMIT_WINDOW]);
     }
 
-    // Anzahl aktueller Versuche für diese IP im Zeitfenster
-    $stmt = $pdo->prepare(
-        'SELECT COUNT(*) FROM rate_limits
-         WHERE ip = INET6_ATON(:ip)
-           AND created_at > DATE_SUB(NOW(), INTERVAL :window SECOND)'
-    );
-    $stmt->execute([':ip' => $ip, ':window' => RATE_LIMIT_WINDOW]);
-    $count = (int) $stmt->fetchColumn();
-
-    if ($count >= RATE_LIMIT_MAX_UPLOADS) {
-        $minutes = (int) ceil(RATE_LIMIT_WINDOW / 60);
-        throw new RuntimeException(
-            "Rate-Limit erreicht: Maximal " . RATE_LIMIT_MAX_UPLOADS
-            . " Uploads pro $minutes Minuten erlaubt. Bitte später erneut versuchen.",
-            429
+    // Transaktion mit FOR UPDATE verhindert TOCTOU-Race bei parallelen Anfragen
+    $pdo->beginTransaction();
+    $committed = false;
+    try {
+        $stmt = $pdo->prepare(
+            'SELECT COUNT(*) FROM rate_limits
+             WHERE ip = INET6_ATON(:ip)
+               AND created_at > DATE_SUB(NOW(), INTERVAL :window SECOND)
+             FOR UPDATE'
         );
-    }
+        $stmt->execute([':ip' => $ip, ':window' => RATE_LIMIT_WINDOW]);
+        $count = (int) $stmt->fetchColumn();
 
-    // Versuch registrieren
-    $pdo->prepare('INSERT INTO rate_limits (ip) VALUES (INET6_ATON(:ip))')
-        ->execute([':ip' => $ip]);
+        if ($count >= RATE_LIMIT_MAX_UPLOADS) {
+            $pdo->rollBack();
+            $committed = true;
+            $minutes = (int) ceil(RATE_LIMIT_WINDOW / 60);
+            throw new RuntimeException(
+                "Rate-Limit erreicht: Maximal " . RATE_LIMIT_MAX_UPLOADS
+                . " Uploads pro $minutes Minuten erlaubt. Bitte später erneut versuchen.",
+                429
+            );
+        }
+
+        // Versuch registrieren
+        $pdo->prepare('INSERT INTO rate_limits (ip) VALUES (INET6_ATON(:ip))')
+            ->execute([':ip' => $ip]);
+
+        $pdo->commit();
+        $committed = true;
+    } finally {
+        if (!$committed) {
+            $pdo->rollBack();
+        }
+    }
 }
 
 /**

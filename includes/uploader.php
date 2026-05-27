@@ -65,17 +65,16 @@ function handleUploadChunk(PDO $pdo): void
         }
     }
 
-    // ── Erster Chunk: Auth + Rate-Limit ─────────────────────────────────────
-    if ($chunkIndex === 0) {
-        // Upload-Authentifizierung (falls UPLOAD_TOKEN konfiguriert)
-        if (UPLOAD_TOKEN !== '') {
-            $submitted = $_POST['upload_token'] ?? '';
-            if (!hash_equals(UPLOAD_TOKEN, $submitted)) {
-                throw new RuntimeException('Ungültiger Zugangscode.', 401);
-            }
+    // ── Upload-Authentifizierung (jeder Chunk) ───────────────────────────────
+    if (UPLOAD_TOKEN !== '') {
+        $submitted = $_POST['upload_token'] ?? '';
+        if (!hash_equals(UPLOAD_TOKEN, $submitted)) {
+            throw new RuntimeException('Ungültiger Zugangscode.', 401);
         }
+    }
 
-        // Rate Limiting
+    // ── Erster Chunk: Rate-Limit ─────────────────────────────────────────────
+    if ($chunkIndex === 0) {
         $clientIp = getClientIp() ?? '0.0.0.0';
         checkRateLimit($pdo, $clientIp);
     }
@@ -247,8 +246,7 @@ function assembleAndStore(
             ->format('Y-m-d H:i:s');
 
         // IP-Adresse speichern
-        $rawIp = $_SERVER['HTTP_X_FORWARDED_FOR'] ?? $_SERVER['REMOTE_ADDR'] ?? '';
-        $ip    = filter_var(explode(',', $rawIp)[0], FILTER_VALIDATE_IP) ? trim(explode(',', $rawIp)[0]) : null;
+        $ip = getClientIp();
 
         // Passwort-Hash (null wenn kein Passwort gesetzt)
         $linkPasswordHash = ($linkPassword !== '')

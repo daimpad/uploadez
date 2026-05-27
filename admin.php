@@ -11,6 +11,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/includes/db.php';
+require_once __DIR__ . '/includes/mailer.php';
 
 // ── Session starten ──────────────────────────────────────────────────────────
 session_set_cookie_params([
@@ -154,13 +155,6 @@ if ($isLoggedIn) {
 }
 
 // ── Hilfsfunktionen ───────────────────────────────────────────────────────────
-function fmtBytes(int $b): string {
-    if ($b >= 1073741824) return round($b / 1073741824, 2) . ' GB';
-    if ($b >= 1048576)    return round($b / 1048576, 2) . ' MB';
-    if ($b >= 1024)       return round($b / 1024, 2) . ' KB';
-    return $b . ' B';
-}
-
 function isExpired(string $expiry): bool {
     return new DateTimeImmutable($expiry, new DateTimeZone('UTC'))
            < new DateTimeImmutable('now', new DateTimeZone('UTC'));
@@ -680,7 +674,7 @@ $h = fn(string $s) => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
             <div class="stat-lbl">Abgelaufen</div>
         </div>
         <div class="stat-card">
-            <div class="stat-val"><?= fmtBytes((int)($stats['total_size'] ?? 0)) ?></div>
+            <div class="stat-val"><?= formatBytes((int)($stats['total_size'] ?? 0)) ?></div>
             <div class="stat-lbl">Gesamtgröße</div>
         </div>
     </div>
@@ -775,7 +769,7 @@ $h = fn(string $s) => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
                         </div>
                     </td>
                     <!-- Größe -->
-                    <td class="col-size" data-label="Größe"><?= fmtBytes((int)$f['file_size']) ?></td>
+                    <td class="col-size" data-label="Größe"><?= formatBytes((int)$f['file_size']) ?></td>
                     <!-- Status -->
                     <td data-label="Status"><?= $badge ?></td>
                     <!-- Downloads -->
@@ -892,7 +886,7 @@ async function copyUrl(btn) {
     btn.textContent = '✓ Kopiert!';
     btn.classList.add('copied');
     setTimeout(() => {
-        btn.textContent = '📋 Kopieren';
+        btn.textContent = 'Kopieren';
         btn.classList.remove('copied');
     }, 2000);
 }
