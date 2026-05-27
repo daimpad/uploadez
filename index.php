@@ -556,14 +556,33 @@ if ($action !== '') {
         }
 
         /* ── Responsive ──────────────────────────────────────────────────── */
+        @media (max-width: 640px) {
+            main { margin: 20px auto; }
+            .page-header p { font-size: 10px; letter-spacing: 0.08em; }
+            /* Touch-Targets ≥ 44 px */
+            .btn, .btn-primary { min-height: 48px; }
+            .btn-send-email { min-height: 48px; }
+            .btn-copy { min-height: 48px; padding: 0 16px; }
+            .file-remove { min-height: 44px; min-width: 44px; display: flex; align-items: center; justify-content: center; }
+        }
+
         @media (max-width: 520px) {
+            main { margin: 12px auto; }
+            .page-header { padding: 14px 16px; }
+            .page-header p { display: none; }
+            .page-header .logo { font-size: 1.6rem; }
             .card-body { padding: 20px; }
-            .drop-zone { padding: 32px 16px; }
+            .drop-zone { padding: 28px 16px; }
             .info-bar { grid-template-columns: 1fr; }
             .info-bar-item { border-right: none; border-bottom: 2px solid var(--nz-ink); }
             .info-bar-item:last-child { border-bottom: none; }
+            /* E-Mail-Versand-Zeile stapeln */
             .email-row { flex-direction: column; }
             .email-row input[type="email"] { border-right: 2px solid var(--nz-ink); border-bottom: none; }
+            /* Link-Box stapeln */
+            .link-box { flex-direction: column; }
+            .link-box input { padding: 12px; border-bottom: 2px solid var(--nz-ink); }
+            .btn-copy { border-left: none; border-top: none; padding: 12px; text-align: center; }
         }
     </style>
 </head>

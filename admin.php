@@ -553,10 +553,70 @@ $h = fn(string $s) => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
 
         /* ── Responsive ──────────────────────────────────────────────────── */
         @media (max-width: 900px) { .col-email, .col-date { display: none; } }
+
         @media (max-width: 640px) {
             .col-size, .col-cnt { display: none; }
             .url-text { max-width: 140px; }
             .file-cell .f-name { max-width: 120px; }
+            .toolbar { flex-wrap: wrap; gap: 8px; }
+        }
+
+        /* ── Karten-Layout für Tabellen-Zeilen auf Phones ────────────────── */
+        @media (max-width: 540px) {
+            /* Tabelle → Karten */
+            .table-wrap { overflow: visible; box-shadow: none; border: none; }
+            table, tbody, tr { display: block; }
+            thead { display: none; }
+            tr {
+                border: 2px solid var(--nz-ink);
+                box-shadow: var(--nz-shadow-sm);
+                background: #fff;
+                margin-bottom: 14px;
+            }
+            td {
+                display: flex;
+                align-items: center;
+                padding: 10px 14px;
+                border-bottom: 1.5px solid var(--nz-ink-20);
+                min-height: 44px;
+            }
+            td:last-child { border-bottom: none; }
+            td[data-label]::before {
+                content: attr(data-label);
+                font-family: var(--nz-font-mono);
+                font-size: 10px;
+                letter-spacing: 0.1em;
+                text-transform: uppercase;
+                color: var(--nz-ink-70);
+                font-weight: 700;
+                flex-shrink: 0;
+                width: 72px;
+                margin-right: 12px;
+            }
+            /* Spalten die auf Desktop ausgeblendet waren, jetzt wieder zeigen */
+            .col-email, .col-date, .col-size, .col-cnt { display: flex; }
+            .file-cell .f-name { max-width: none; white-space: normal; }
+            .url-text { max-width: none; white-space: normal; word-break: break-all; }
+            .url-cell { flex-wrap: wrap; gap: 8px; }
+
+            /* Header */
+            .page-header { padding: 14px 16px; }
+            .logo { font-size: 1.3rem; }
+            .logo small { display: none; }
+            .btn-ghost { padding: 6px 10px; font-size: 10px; }
+
+            /* Hauptbereich */
+            .main { padding: 16px; }
+            .stats-grid { grid-template-columns: 1fr 1fr; }
+
+            /* Login */
+            .login-card { padding: 24px 20px; margin: 0 4px; }
+
+            /* Touch-Targets */
+            .btn-sm { min-height: 44px; }
+            .btn-primary { min-height: 48px; }
+            .btn-del { min-height: 44px; min-width: 44px; display: flex; align-items: center; justify-content: center; }
+            .btn-copy-row { padding: 8px 12px; }
         }
     </style>
 </head>
@@ -687,7 +747,7 @@ $h = fn(string $s) => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
             ?>
                 <tr>
                     <!-- Dateiname -->
-                    <td>
+                    <td data-label="Datei">
                         <div class="file-cell">
                             <span class="f-icon"><?= fileEmoji($f['mime_type']) ?></span>
                             <div>
@@ -697,7 +757,7 @@ $h = fn(string $s) => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
                         </div>
                     </td>
                     <!-- Download-Link + Kopieren -->
-                    <td>
+                    <td data-label="Link">
                         <div class="url-cell">
                             <span class="url-text">
                                 <?php if (!$expired): ?>
@@ -710,26 +770,26 @@ $h = fn(string $s) => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
                                     data-url="<?= $h($dlUrl) ?>"
                                     onclick="copyUrl(this)"
                                     title="Link in Zwischenablage kopieren">
-                                📋 Kopieren
+                                Kopieren
                             </button>
                         </div>
                     </td>
                     <!-- Größe -->
-                    <td class="col-size"><?= fmtBytes((int)$f['file_size']) ?></td>
+                    <td class="col-size" data-label="Größe"><?= fmtBytes((int)$f['file_size']) ?></td>
                     <!-- Status -->
-                    <td><?= $badge ?></td>
+                    <td data-label="Status"><?= $badge ?></td>
                     <!-- Downloads -->
-                    <td class="col-cnt" style="text-align:center"><?= (int)$f['download_count'] ?>×</td>
+                    <td class="col-cnt" data-label="DL" style="text-align:center"><?= (int)$f['download_count'] ?>×</td>
                     <!-- E-Mail -->
-                    <td class="col-email">
+                    <td class="col-email" data-label="E-Mail">
                         <?= $f['email_recipient'] ? $h($f['email_recipient']) : '<span style="color:var(--nz-ink-70)">—</span>' ?>
                     </td>
                     <!-- Hochgeladen -->
-                    <td class="col-date" style="white-space:nowrap">
+                    <td class="col-date" data-label="Datum" style="white-space:nowrap">
                         <?= (new DateTimeImmutable($f['created_at']))->format('d.m.Y H:i') ?>
                     </td>
                     <!-- Ablauf -->
-                    <td class="col-date" style="white-space:nowrap">
+                    <td class="col-date" data-label="Ablauf" style="white-space:nowrap">
                         <?= $expDt->format('d.m.Y') ?>
                     </td>
                     <!-- Löschen -->
